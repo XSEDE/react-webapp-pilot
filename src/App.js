@@ -12,7 +12,6 @@ import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { faWindowRestore } from "@fortawesome/free-solid-svg-icons";
 import { Container, Row, Col } from "react-bootstrap";
-import "bootstrap/dist/css/bootstrap.min.css";
 import Pagination from "react-js-pagination";
 import { Checkbox, FormGroup, FormControlLabel } from "@material-ui/core";
 
@@ -54,7 +53,7 @@ function QualityLevel(CurrentQualityLevel) {
   if (CurrentQualityLevel !== "" && CurrentQualityLevel !== null) {
     return (
       <React.Fragment>
-        <b>&nbsp;Quality Level&nbsp;</b>
+        <b>Quality Level : </b>
         <div className="attributes">{CurrentQualityLevel}</div>
         <br />
       </React.Fragment>
@@ -66,7 +65,7 @@ function Audience(CurrentAudience) {
   if (CurrentAudience !== "" && CurrentAudience !== null) {
     return (
       <React.Fragment>
-        <b>&nbsp;Audience&nbsp;</b>
+        <b>Audience : </b>
         <div className="attributes">{CurrentAudience}</div>
         <br />
       </React.Fragment>
@@ -202,7 +201,8 @@ class App extends Component {
       console.log(this.state.searchField);
       //this.state.pageNumber = this.state.activePage - 1;
       const url =
-        "https://info.xsede.org/wh1/resource-api/v3/resource_esearch/?format=json&aggregations=type,affiliation,resourcegroup,providerid&search_terms=" +
+        "https://operations-api.access-ci.org/wh2/resource/v4/resource_esearch/?format=json&aggregations=type,affiliation,resourcegroup,providerid&search_terms="+
+        // "https://info.xsede.org/wh1/resource-api/v3/resource_esearch/?format=json&aggregations=type,affiliation,resourcegroup,providerid&search_terms=" +
         this.state.searchTerm +
         "&page=" +
         this.state.activePage +
@@ -225,13 +225,31 @@ class App extends Component {
       const data = await response.json();
       var currentTimeInMillisecondsAfter = Date.now();
       //this.state.searchTime = currentTimeInMillisecondsAfter - currentTimeInMillisecondsBefore;
+
+      let stateFromSettings = {}
+      if (window.SETTINGS.resourceGroup) {
+        data.aggregations.ResourceGroup = data.aggregations.ResourceGroup
+                            .filter(({Name}) => Name === window.SETTINGS.resourceGroup);
+
+        stateFromSettings["resourceGroup"] = window.SETTINGS.resourceGroup;
+      }
+
+      if (window.SETTINGS.affiliation) {
+        data.aggregations.Affiliation = data.aggregations.Affiliation
+                            .filter(({Name}) => Name === window.SETTINGS.affiliation);
+
+        stateFromSettings["affiliation"] = window.SETTINGS.affiliation;
+      }
+
       this.setState({
         searchTime:
           currentTimeInMillisecondsAfter - currentTimeInMillisecondsBefore,
         result: data.results,
         aggregations: data.aggregations,
-        total: data.total_results,
-        loading: false
+        total: data.count,
+        loading: false,
+        resourceGroup: "Software",
+        ...stateFromSettings
       });
     } else if (this.state.individualTrue === true) {
       // const { id } = this.props.id;
@@ -240,7 +258,8 @@ class App extends Component {
       // console.log('id = ', id);
       const r_id = this.state.resourceID; // window.location.pathname;
       const url =
-        "https://info.xsede.org/wh1/resource-api/v3/resource/id/" +
+        "https://operations-api.access-ci.org/wh2/resource/v4/resource/id/" +
+        // "https://info.xsede.org/wh1/resource-api/v3/resource/id/" +
         r_id +
         "/?format=json";
 
@@ -250,6 +269,14 @@ class App extends Component {
         result: data.results,
         loading: false
       });
+    }
+  }
+
+  getTitle() {
+    if (window.SETTINGS.title) {
+        return window.SETTINGS.title
+    } else {
+        return "Resource Tools and Services Discovery"
     }
   }
 
@@ -269,7 +296,7 @@ class App extends Component {
           <React.Fragment>
             <Container fluid>
               <div className="page">
-                <h1 className="title">Resource Tools and Services Discovery</h1>
+                <h1 className="title">{this.getTitle()}</h1>
                 <Row>
                   <Col xs={{ span: 8, offset: 4 }} lg={{ span: 10, offset: 2 }}>
                     <div className="input-box">
@@ -380,11 +407,15 @@ class App extends Component {
                     </button>
                     <br />
                     <div className="terms">
-                      <b className="selectionHeader">By Affiliation:</b> <br />
-                      {aggregations.Affiliation.map((affiliation) => (
+                      {aggregations.Affiliation && aggregations.Affiliation.length > 1 ?
+
+                        <>
+                          <b className="selectionHeader">
+                          By Affiliation:</b> <br />
+                          {aggregations.Affiliation.map((affiliation, affiliationIndex) => (
                         <div
                           className="selectionDetails"
-                          key={aggregations.Affiliation.Name}
+                          key={affiliationIndex}
                         >
                           <Link
                             to={this.props}
@@ -400,33 +431,42 @@ class App extends Component {
                           {" (" + affiliation.count + ")"}
                         </div>
                       ))}
-                      <b className="selectionHeader">By Resource Group:</b>{" "}
-                      <br />
-                      {aggregations.ResourceGroup.map((ResourceGroup) => (
-                        <div
-                          className="selectionDetails"
-                          key={aggregations.ResourceGroup.Name}
-                        >
-                          <Link
-                            to={this.props}
-                            onClick={() =>
-                              this.setState({
-                                resourceGroup: ResourceGroup.Name
-                              })
-                            }
-                          >
-                            <FontAwesomeIcon size="1x" icon={faCog} />{" "}
-                            {ResourceGroup.Name}
-                          </Link>
-                          {" (" + ResourceGroup.count + ")"}
+                        </>: null
+                      }
+
+                      {aggregations.ResourceGroup && aggregations.ResourceGroup.length > 1 ?
+
+                        <>
+                          <b className="selectionHeader">By Resource Group:</b>{" "}
                           <br />
-                        </div>
-                      ))}
+                          {aggregations.ResourceGroup.map((ResourceGroup, ResourceGroupIndex) => (
+                            <div
+                              className="selectionDetails"
+                              key={ResourceGroupIndex}
+                            >
+                              <Link
+                                to={this.props}
+                                onClick={() =>
+                                  this.setState({
+                                    resourceGroup: ResourceGroup.Name
+                                  })
+                                }
+                              >
+                                <FontAwesomeIcon size="1x" icon={faCog} />{" "}
+                                {ResourceGroup.Name}
+                              </Link>
+                              {" (" + ResourceGroup.count + ")"}
+                              <br />
+                            </div>
+                          ))}
+                        </>: null
+                      }
+
                       <b className="selectionHeader">By Type:</b> <br />
-                      {aggregations.Type.map((Type) => (
+                      {aggregations.Type.map((Type, TypeIndex) => (
                         <div
                           className="selectionDetails"
-                          key={aggregations.Type.Name}
+                          key={TypeIndex}
                         >
                           <Link
                             to={this.props}
@@ -444,10 +484,10 @@ class App extends Component {
                         </div>
                       ))}
                       <b className="selectionHeader">By Provider:</b> <br />
-                      {aggregations.ProviderID.map((Provider) => (
+                      {aggregations.ProviderID.map((Provider, ProviderIndex) => (
                         <div
                           className="selectionDetails"
-                          key={aggregations.ProviderID.Name}
+                          key={ProviderIndex}
                         >
                           <Link
                             to={this.props}
@@ -468,8 +508,8 @@ class App extends Component {
                   </Col>
                   <Col xs="8" lg="10">
                     <div className="results">
-                      {result.map((resource) => (
-                        <div key={resource.ID}>
+                      {result.map((resource, resourceIndex) => (
+                        <div key={resourceIndex}>
                           <article className="result">
                             {/*<h3>{resource.Affiliation}</h3>*/}
                             <h2>
@@ -482,7 +522,7 @@ class App extends Component {
                                   })
                                 }
                               >
-                                {resource.Name}
+                                {resource.ShortDescription}
                               </Link>
                             </h2>
                             <div className="details">
@@ -490,9 +530,10 @@ class App extends Component {
                                 {TypeMapping(resource.Type)}
                                 {"  " +
                                   resource.Type +
-                                  "; Affiliation: " +
-                                  resource.Affiliation +
-                                  " "}
+//                                  "; Affiliation: " +
+//                                  resource.Affiliation +
+                                  " "
+                                  }
                                 <div className="noNewLine">
                                   <FontAwesomeIcon size="1x" icon={faCog} />
                                   <div className="noNewLine">
@@ -503,11 +544,11 @@ class App extends Component {
                                   </div>
                                 </div>
                               </div>
-                              <p
-                                dangerouslySetInnerHTML={{
-                                  __html: resource.Description
-                                }}
-                              ></p>
+                              {/*<p*/}
+                              {/*  dangerouslySetInnerHTML={{*/}
+                              {/*    __html: resource.Description*/}
+                              {/*  }}*/}
+                              {/*></p>*/}
                             </div>
                           </article>
                         </div>
@@ -542,18 +583,18 @@ class App extends Component {
       return (
         <Container fluid>
           <div className="page">
-            <h1 className="title">Resource Tools and Services Discovery</h1>
+            <h1 className="title">{this.getTitle()}</h1>
             <button className="btn btn-primary" onClick={this.BackPage}>
               <FontAwesomeIcon size="1x" icon={faArrowLeft} />
             </button>
             <Row>
               <Col xs={10}>
                 <div className="results">
-                  {result.map((resource) => (
-                    <div key={resource.ID} class="article">
+                  {result.map((resource, resourceIndex) => (
+                    <div key={resourceIndex} className="article">
                       <article className="result">
                         <div className="individualh1">
-                          <b>{resource.Name}</b>
+                          <b>{resource.ShortDescription}</b>
                         </div>
                         <br />
                         <div className="details">
@@ -576,10 +617,10 @@ class App extends Component {
                           <h1>Relations</h1>
                           <br />
                           {resource.Relations &&
-                            resource.Relations.map((resource) => (
-                              <div>
-                                <b>&nbsp;{resource.RelationType}&nbsp;</b>
-                                {resource.Name}
+                            resource.Relations.map((relation, relationIndex) => (
+                              <div key={relationIndex}>
+                                <b>{relation.RelationType} : </b>
+                                {relation.Name}
                               </div>
                             ))}
                         </div>
